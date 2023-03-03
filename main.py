@@ -105,9 +105,11 @@ async def sql_read2():
     global base, cur
     return cur.execute('SELECT * FROM menu').fetchall()
 
+
 async def sql_count():
     global base, cur
-    return cur.execute('SELECT COUNT (*) FROM menu').fetchall()
+    x=cur.execute('SELECT COUNT (*) FROM menu').fetchall()
+    return x[0][0]  # потому что это список из одного кортежа, в котором 1 число
 
 
 async def sql_delete_command(data):
@@ -194,13 +196,17 @@ async def load_price(message: types.Message, state: FSMContext):
 
     await state.finish()  # ахтунг! тута данные – того, Ёк!
     print('добавили')
-    await message.reply(f"Вс норм! {await sql_count()} пиццов в меню")
+    await message.reply(f"Всё норм! {await sql_count()} пиццов в меню")
+
 
 @dp.callback_query_handler(lambda x: x.data and x.data[:4] == 'del ')
 async def del_callback_run(callback_query: types.CallbackQuery):
     print(callback_query)
     await sql_delete_command(callback_query.data.replace('del ', ''))
-    await callback_query.message.answer(text=f'{callback_query.data.replace("del ", "")} удалена')
+    x = await sql_count()
+    print(f"Осталось {x} пиццов в меню")
+    await callback_query.message.answer(
+        text=f'{callback_query.data.replace("del ", "")} удалена \nОсталось {x} пиццов в меню   ')
     await callback_query.answer(text=f'{callback_query.data.replace("del ", "")} удалена')
 
 
