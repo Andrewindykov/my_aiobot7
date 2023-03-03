@@ -7,6 +7,7 @@ from aiogram.dispatcher import Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 # для клавы
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from aiogram.utils import executor
@@ -66,13 +67,14 @@ async def pizza_place_command(message: types.Message):
 @dp.message_handler(commands=['Меню'])
 async def pizza_menu_command(message: types.Message):
     # перенесли к базе данных
-    #for ret in cur.execute('SELECT * FROM menu').fetchall():
+    # for ret in cur.execute('SELECT * FROM menu').fetchall():
     #    await bot.send_photo(message.from_user.id, ret[0], f'{ret[1]}\n#Описание:# {ret[2]}\n*Цена* {ret[-1]}')
     await sql_read(message)
 
 
 '''*******************************АДМИНСКАЯ ЧАСТЬ*******************************************'''
 ID = None
+base = cur = None
 
 
 def sql_start():
@@ -86,13 +88,32 @@ def sql_start():
 
 
 async def sql_add_command(state):
+    global base, cur
     async with state.proxy() as data:
+        print(tuple(data.values()))
         cur.execute('INSERT INTO menu VALUES (?, ?, ?, ?)', tuple(data.values()))
         base.commit()
 
+
 async def sql_read(message):
+    global base, cur
     for ret in cur.execute('SELECT * FROM menu').fetchall():
         await bot.send_photo(message.from_user.id, ret[0], f'{ret[1]}\n*Описание:* {ret[2]}\n*Цена* {ret[-1]}')
+
+
+async def sql_read2():
+    global base, cur
+    return cur.execute('SELECT * FROM menu').fetchall()
+
+async def sql_count():
+    global base, cur
+    return cur.execute('SELECT COUNT (*) FROM menu').fetchall()
+
+
+async def sql_delete_command(data):
+    global base, cur
+    cur.execute('DELETE FROM menu WHERE name == ?', (data,))
+    base.commit()
 
 
 # для машины состояний
@@ -110,7 +131,7 @@ async def make_changes_command(message: types.Message):
     global ID
     ID = message.from_user.id
     await bot.send_message(message.from_user.id, "Что. Хозяин. Надо???", reply_markup=button_case_admin)
-    await message.delete()
+    # await message.delete() # работает только когда админ чата
 
 
 # Начало диалога загрузки нового пункта меню
@@ -172,6 +193,25 @@ async def load_price(message: types.Message, state: FSMContext):
     await sql_add_command(state)
 
     await state.finish()  # ахтунг! тута данные – того, Ёк!
+    print('добавили')
+    await message.reply(f"Вс норм! {await sql_count()} пиццов в меню")
+
+@dp.callback_query_handler(lambda x: x.data and x.data[:4] == 'del ')
+async def del_callback_run(callback_query: types.CallbackQuery):
+    print(callback_query)
+    await sql_delete_command(callback_query.data.replace('del ', ''))
+    await callback_query.message.answer(text=f'{callback_query.data.replace("del ", "")} удалена')
+    await callback_query.answer(text=f'{callback_query.data.replace("del ", "")} удалена')
+
+
+@dp.message_handler(commands='Удалить')
+async def delete_item(message: types.Message):
+    if message.from_user.id == ID:
+        read = await sql_read2()
+        for ret in read:
+            await bot.send_photo(message.from_user.id, ret[0], f'{ret[1]}\n*Описание:* {ret[2]}\n*Цена* {ret[-1]}')
+            await bot.send_message(message.from_user.id, text='^^^', reply_markup=InlineKeyboardMarkup().add(
+                InlineKeyboardButton(f'Удалить {ret[1]}', callback_data=f'del {ret[1]}')))
 
 
 '''*********************************ОБЩАЯ ЧАСТЬ*********************************************'''
