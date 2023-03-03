@@ -73,7 +73,7 @@ async def pizza_menu_command(message: types.Message):
 
 
 '''*******************************АДМИНСКАЯ ЧАСТЬ*******************************************'''
-ID = None
+ID = 954230772 # это мой айдишник. пока кто то не заявит права на модераторство - все заявки шлются сюдой
 base = cur = None
 
 
@@ -98,7 +98,10 @@ async def sql_add_command(state):
 async def sql_read(message):
     global base, cur
     for ret in cur.execute('SELECT * FROM menu').fetchall():
-        await bot.send_photo(message.from_user.id, ret[0], f'{ret[1]}\n*Описание:* {ret[2]}\n*Цена* {ret[-1]}')
+        await bot.send_photo(message.from_user.id, ret[0], f'{ret[1]}\nОписание:  {ret[2]}\nЦена:  {ret[-1]}')
+        await bot.send_message(message.from_user.id, text='^^^', reply_markup=InlineKeyboardMarkup().add(
+            InlineKeyboardButton(f'Заказать {ret[1]}', callback_data=f'request {ret[1]}')))
+        await bot.send_photo(message.from_user.id, ret[0], f' \n ')
 
 
 async def sql_read2():
@@ -108,7 +111,7 @@ async def sql_read2():
 
 async def sql_count():
     global base, cur
-    x=cur.execute('SELECT COUNT (*) FROM menu').fetchall()
+    x = cur.execute('SELECT COUNT (*) FROM menu').fetchall()
     return x[0][0]  # потому что это список из одного кортежа, в котором 1 число
 
 
@@ -199,9 +202,23 @@ async def load_price(message: types.Message, state: FSMContext):
     await message.reply(f"Всё норм! {await sql_count()} пиццов в меню")
 
 
+# request {ret[1]}
+@dp.callback_query_handler(lambda x: x.data and x.data[:8] == 'request ')
+async def req_callback_run(callback_query: types.CallbackQuery):
+    global ID
+#    print(callback_query)
+    print(f"Заказали в меню")
+    await callback_query.message.answer(
+        text=f'"{callback_query.data.replace("request ", "")}" заказана \nОжидайте 44 минутки   ')
+    await callback_query.answer(text=f'{callback_query.data.replace("request ", "")} заказана!')
+    # теперь кинем модератору заявку
+    await bot.send_message(ID,
+                           f'Там это похавать заказали "{callback_query.data.replace("request ", "")}".  Это сделал id={callback_query["from"]["id"]}  {callback_query["from"]["first_name"]} {callback_query["from"]["last_name"]} @{callback_query["from"]["username"]}')
+
+
 @dp.callback_query_handler(lambda x: x.data and x.data[:4] == 'del ')
 async def del_callback_run(callback_query: types.CallbackQuery):
-    print(callback_query)
+    #print(callback_query)
     await sql_delete_command(callback_query.data.replace('del ', ''))
     x = await sql_count()
     print(f"Осталось {x} пиццов в меню")
